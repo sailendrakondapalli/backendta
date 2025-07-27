@@ -6,12 +6,31 @@ const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("cloudinary").v2;
 require("dotenv").config();
-const cookieParser = require('cookie-parser')
-
+const cookieParser = require('cookie-parser');
+const { Server } = require("socket.io");
+const http = require("http");
 const app = express();
 app.use(cors());
 app.use(express.json());
+const server = http.createServer(app);
 
+
+
+const io = new Server(server, {
+  cors: {
+    origin: "*", // for testing
+    methods: ["GET", "POST"]
+  },
+  path: "/ws" // if you're using '/ws' in client
+});
+
+io.on("connection", (socket) => {
+  console.log("🟢 WebSocket client connected");
+
+  socket.on("disconnect", () => {
+    console.log("🔴 WebSocket client disconnected");
+  });
+});
 // ===== MongoDB Connection =====
 mongoose.connect(
   process.env.MONGO_URI,
@@ -339,6 +358,6 @@ app.get("/api/search-orders", async (req, res) => {
 
 // ====== Start Server ======
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
