@@ -209,11 +209,28 @@ app.post("/api/add-product", upload.single("image"), async (req, res) => {
 });
 
 // Get Products by City
+// Get Products by City (UPDATED to support multiple cities)
 app.get("/api/products", async (req, res) => {
-  const { city } = req.query;
-  const products = await Product.find({ city });
-  res.send(products);
+  try {
+    const { city, cities } = req.query;
+
+    let query = {};
+
+    if (cities) {
+      const cityList = cities.split(",").map((c) => c.trim());
+      query.city = { $in: cityList };
+    } else if (city) {
+      query.city = city;
+    }
+
+    const products = await Product.find(query);
+    res.send(products);
+  } catch (error) {
+    console.error("❌ Error fetching products:", error);
+    res.status(500).send({ message: "Server error fetching products" });
+  }
 });
+
 
 // Book Order + Email Notifications
 app.post("/api/book-order", async (req, res) => {
