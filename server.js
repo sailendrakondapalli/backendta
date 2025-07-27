@@ -6,6 +6,7 @@ const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("cloudinary").v2;
 require("dotenv").config();
+const cookieParser = require('cookie-parser')
 
 const app = express();
 app.use(cors());
@@ -47,8 +48,19 @@ const productSchema = new mongoose.Schema({
   adminName: String,
   city: String,
   unit: String, 
-  
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: [0, 0]
+    }
+  }
 });
+productSchema.index({ location: "2dsphere" });
 
 const userSchema = new mongoose.Schema({
   name: String,
@@ -188,7 +200,7 @@ app.post("/api/login", async (req, res) => {
 // Add Product (Cloudinary image upload)
 app.post("/api/add-product", upload.single("image"), async (req, res) => {
   try {
-    const { name, cost, store, stock, category, adminEmail, adminName ,city} = req.body;
+    const { name, cost, store, stock, category, adminEmail, adminName ,city,lat, lng } = req.body;
     const { unit } = req.body;
     const image = req.file;
 
@@ -198,13 +210,44 @@ app.post("/api/add-product", upload.single("image"), async (req, res) => {
 
     const src = image.path;
 
-    const product = new Product({ name, cost, store, stock, src, category, adminEmail, adminName,city, unit});
+    const product = new Product({ name, cost, store, stock, src, category, adminEmail, adminName,city, unit, location: {
+    type: "Point",
+    coordinates: [parseFloat(lng), parseFloat(lat)]
+  }});
     await product.save();
 
     res.send({ success: true, message: "Product added successfully", product });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: "Failed to add product" });
+  }
+});
+
+
+app.get("/api/products/nearby", async (req, res) => {
+  const { lat, lng, radius = 5 } = req.query; // default to 5km
+
+  if (!lat || !lng) {
+    return res.status(400).json({ success: false, message: "Latitude and longitude are required" });
+  }
+
+  try {
+    const products = await Product.find({
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: parseFloat(radius) * 1000 // convert km to meters
+        }
+      }
+    });
+
+    res.json(products);
+  } catch (error) {
+    console.error("❌ Error in nearby search:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch nearby products" });
   }
 });
 
