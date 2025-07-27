@@ -6,31 +6,11 @@ const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("cloudinary").v2;
 require("dotenv").config();
-const cookieParser = require('cookie-parser');
-const { Server } = require("socket.io");
-const http = require("http");
+
 const app = express();
 app.use(cors());
 app.use(express.json());
-const server = http.createServer(app);
 
-
-
-const io = new Server(server, {
-  cors: {
-    origin: "*", // for testing
-    methods: ["GET", "POST"]
-  },
-  path: "/ws" // if you're using '/ws' in client
-});
-
-io.on("connection", (socket) => {
-  console.log("🟢 WebSocket client connected");
-
-  socket.on("disconnect", () => {
-    console.log("🔴 WebSocket client disconnected");
-  });
-});
 // ===== MongoDB Connection =====
 mongoose.connect(
   process.env.MONGO_URI,
@@ -67,19 +47,8 @@ const productSchema = new mongoose.Schema({
   adminName: String,
   city: String,
   unit: String, 
-  location: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point'
-    },
-    coordinates: {
-      type: [Number], // [longitude, latitude]
-      default: [0, 0]
-    }
-  }
+  
 });
-productSchema.index({ location: "2dsphere" });
 
 const userSchema = new mongoose.Schema({
   name: String,
@@ -219,7 +188,7 @@ app.post("/api/login", async (req, res) => {
 // Add Product (Cloudinary image upload)
 app.post("/api/add-product", upload.single("image"), async (req, res) => {
   try {
-    const { name, cost, store, stock, category, adminEmail, adminName ,city,lat, lng } = req.body;
+    const { name, cost, store, stock, category, adminEmail, adminName ,city} = req.body;
     const { unit } = req.body;
     const image = req.file;
 
@@ -229,44 +198,13 @@ app.post("/api/add-product", upload.single("image"), async (req, res) => {
 
     const src = image.path;
 
-    const product = new Product({ name, cost, store, stock, src, category, adminEmail, adminName,city, unit, location: {
-    type: "Point",
-    coordinates: [parseFloat(lng), parseFloat(lat)]
-  }});
+    const product = new Product({ name, cost, store, stock, src, category, adminEmail, adminName,city, unit});
     await product.save();
 
     res.send({ success: true, message: "Product added successfully", product });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: "Failed to add product" });
-  }
-});
-
-
-app.get("/api/products/nearby", async (req, res) => {
-  const { lat, lng, radius = 5 } = req.query; // default to 5km
-
-  if (!lat || !lng) {
-    return res.status(400).json({ success: false, message: "Latitude and longitude are required" });
-  }
-
-  try {
-    const products = await Product.find({
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          $maxDistance: parseFloat(radius) * 1000 // convert km to meters
-        }
-      }
-    });
-
-    res.json(products);
-  } catch (error) {
-    console.error("❌ Error in nearby search:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch nearby products" });
   }
 });
 
@@ -358,6 +296,6 @@ app.get("/api/search-orders", async (req, res) => {
 
 // ====== Start Server ======
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
