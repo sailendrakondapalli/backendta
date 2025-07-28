@@ -217,10 +217,12 @@ app.get("/api/products", async (req, res) => {
     let query = {};
 
     if (cities) {
-      const cityList = cities.split(",").map((c) => c.trim());
+      const cityList = cities
+        .split(",")
+        .map((c) => new RegExp(`^${c.trim()}$`, "i")); // case-insensitive
       query.city = { $in: cityList };
     } else if (city) {
-      query.city = city;
+      query.city = new RegExp(`^${city.trim()}$`, "i"); // case-insensitive
     }
 
     const products = await Product.find(query);
@@ -230,6 +232,7 @@ app.get("/api/products", async (req, res) => {
     res.status(500).send({ message: "Server error fetching products" });
   }
 });
+
 
 
 // Book Order + Email Notifications
